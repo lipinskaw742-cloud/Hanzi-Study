@@ -208,7 +208,8 @@ button{color:var(--ink)}
 
 <section id="dictionary" class="hidden">
  <div class="panel"><h1>Lokalny słownik</h1><p class="muted">Wyszukuj w zaimportowanej bazie CC-CEDICT lub dodanych własnych rekordach. Polskie tłumaczenie zawsze wpisujesz samodzielnie.</p>
- <label>Szukaj znaku, słowa lub pinyin</label><input id="dictSearch" placeholder="np. 学习 albo xué xí">
+ <label>Szukaj znaku, słowa lub pinyin</label><input id="dictSearch" placeholder="np. 你好, ni hao albo xuexi">
+ <label>Rodzaj zapisu</label><select id="dictScript"><option value="all">Wszystkie zapisy</option><option value="simplified">Tylko uproszczone</option><option value="traditional">Tylko tradycyjne</option></select>
  <div id="dictResults" class="dictResults"></div>
  <label>Import bazy CC-CEDICT (plik .u8 lub .txt)</label><input id="dictFile" type="file" accept="*/*">
  <p class="muted">Wybierz rozpakowany plik tekstowy cedict_ts.u8 (nie archiwum ZIP). Import może potrwać kilka chwil. Baza jest zapisywana w pamięci przeglądarki, nie w limicie małego localStorage.</p>
@@ -644,11 +645,35 @@ $('dictFile').onchange=async e=>{
  }catch(err){$('dictStatus').textContent='Błąd importu: '+err.message;}
  e.target.value='';
 };
+function foldPinyin(value){
+ return (value||'').toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[1-5]/g,'').replace(/[üǖǘǚǜ]/g,'u').replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ');
+}
+function rankDictionaryEntry(x,q){
+ const hanzi=q.replace(/\s/g,'');
+ const simp=x.simplified||'', trad=x.traditional||'', py=foldPinyin(x.pinyin), en=(x.english||'').toLocaleLowerCase();
+ const qpy=foldPinyin(q);
+ if(simp===hanzi||trad===hanzi)return 0;
+ if(simp.startsWith(hanzi)||trad.startsWith(hanzi))return 1;
+ if(py===qpy)return 2;
+ if(py.startsWith(qpy)||(' '+py).includes(' '+qpy))return 3;
+ const escaped=q.toLocaleLowerCase().replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+ const token=new RegExp('(^|[^a-z])'+escaped+'([^a-z]|$)','i');
+ if(token.test(en))return 4;
+ if(en.startsWith(q.toLocaleLowerCase()))return 5;
+ if(en.includes(q.toLocaleLowerCase()))return 6;
+ return 99;
+}
 function renderDict(){
- const q=($('dictSearch').value||'').trim().toLowerCase();
- const hits=q?dictionary.filter(x=>x.simplified.toLowerCase().includes(q)||x.traditional.toLowerCase().includes(q)||x.pinyin.toLowerCase().includes(q)||x.english.toLowerCase().includes(q)).slice(0,40):[];
+ const raw=($('dictSearch').value||'').trim();
+ const q=raw.toLocaleLowerCase();
+ const mode=$('dictScript')?.value||'all';
  const el=$('dictResults');el.innerHTML='';
  if(!q){el.textContent=dictionary.length?'Wpisz zapytanie, aby przeszukać lokalną bazę.':'Najpierw zaimportuj bazę CC-CEDICT.';return;}
+ let hits=dictionary.map(x=>({x,rank:rankDictionaryEntry(x,q)})).filter(v=>v.rank<99);
+ if(mode==='simplified')hits=hits.filter(v=>v.x.simplified);
+ if(mode==='traditional')hits=hits.filter(v=>v.x.traditional);
+ hits.sort((a,b)=>a.rank-b.rank || a.x.simplified.localeCompare(b.x.simplified));
+ hits=hits.slice(0,40).map(v=>v.x);
  if(!hits.length){el.textContent='Brak wyników. Możesz dodać znak ręcznie w zakładce Dodaj.';return;}
  hits.forEach(x=>{
   const d=document.createElement('div');d.className='dictItem';
@@ -660,6 +685,7 @@ function renderDict(){
  });
 }
 $('dictSearch').oninput=renderDict;
+$('dictScript').onchange=renderDict;
 $('clearDict').onclick=async()=>{
  if(confirm('Usunąć zaimportowaną bazę słownika? Twoje własne słówka pozostaną.')){
   dictionary=[];
