@@ -29,3 +29,14 @@ Aplikacja nie pobiera automatycznie słownika z MDBG ani CC-CEDICT. Pobierz lega
 
 ## Prywatność i koszty
 Aplikacja jest statyczna i może być hostowana przez GitHub Pages bez płatnego backendu. Dane nauki pozostają w przeglądarce. Uwaga: jeśli repozytorium lub strona GitHub Pages są publiczne, sam kod strony jest publiczny — nie umieszczaj w repozytorium prywatnych danych ani kopii słownika, jeśli nie chcesz ich publikować.
+
+
+## Wbudowany słownik CC-CEDICT
+
+Projekt zawiera plik `cedict_ts.u8` z bazą CC-CEDICT udostępnianą przez MDBG.
+Źródło: https://www.mdbg.net/chinese/dictionary?page=cc-cedict
+CC-CEDICT jest udostępniany na licencji Creative Commons Attribution-ShareAlike 4.0 (CC BY-SA 4.0).
+Przy rozpowszechnianiu bazy lub jej adaptacji należy zachować informację o źródle i licencji oraz udostępniać adaptacje na zgodnych warunkach.
+
+Baza jest automatycznie wczytywana przy pierwszym uruchomieniu zakładki Słownik i zapisywana w IndexedDB.
+Polskie tłumaczenia można wyszukiwać w słówkach zapisanych przez użytkownika; definicje CC-CEDICT są angielskie.

@@ -207,11 +207,11 @@ button{color:var(--ink)}
 </section>
 
 <section id="dictionary" class="hidden">
- <div class="panel"><h1>Lokalny słownik</h1><p class="muted">Wyszukuj w zaimportowanej bazie CC-CEDICT lub dodanych własnych rekordach. Polskie tłumaczenie zawsze wpisujesz samodzielnie.</p>
+ <div class="panel"><h1>Lokalny słownik</h1><p class="muted">Wyszukuj po chińskich znakach i pinyin w CC-CEDICT oraz po polskim tłumaczeniu w swoich zapisanych słówkach.</p>
  <label>Szukaj znaku, słowa lub pinyin</label><input id="dictSearch" placeholder="np. 你好, ni hao albo xuexi">
  <label>Rodzaj zapisu</label><select id="dictScript"><option value="all">Wszystkie zapisy</option><option value="simplified">Tylko uproszczone</option><option value="traditional">Tylko tradycyjne</option></select>
  <div id="dictResults" class="dictResults"></div>
- <label>Import bazy CC-CEDICT (plik .u8 lub .txt)</label><input id="dictFile" type="file" accept="*/*">
+ <label>Importuj inną bazę CC-CEDICT (opcjonalnie)</label><input id="dictFile" type="file" accept="*/*">
  <p class="muted">Wybierz rozpakowany plik tekstowy cedict_ts.u8 (nie archiwum ZIP). Import może potrwać kilka chwil. Baza jest zapisywana w pamięci przeglądarki, nie w limicie małego localStorage.</p>
  <button class="secondary" id="clearDict">Usuń zaimportowaną bazę słownika</button><p class="muted" id="dictStatus"></p></div>
 </section>
@@ -617,7 +617,23 @@ async function loadDictionary(){
   if(!dictionary.length){
    try{const old=JSON.parse(localStorage.getItem(DICT_KEY)||'[]');if(old.length){dictionary=old;await saveDictionary(old);localStorage.removeItem(DICT_KEY);}}catch(e){}
   }
-  $('dictStatus').textContent=dictionary.length?'W bazie znajduje się '+dictionary.length.toLocaleString('pl-PL')+' haseł.':'Nie zaimportowano jeszcze bazy. Wybierz plik CC-CEDICT poniżej.';
+  if(!dictionary.length){
+   $('dictStatus').textContent='Ładuję wbudowany słownik CC-CEDICT…';
+   try{
+    const response=await fetch('./cedict_ts.u8');
+    if(!response.ok)throw new Error('Nie można pobrać pliku słownika ('+response.status+').');
+    const source=await response.text();
+    const bundled=parseCedict(source);
+    if(!bundled.length)throw new Error('Wbudowany plik słownika jest pusty lub nieprawidłowy.');
+    await saveDictionary(bundled);
+    dictionary=bundled;
+    $('dictStatus').textContent='Gotowe! Wczytano wbudowany CC-CEDICT: '+dictionary.length.toLocaleString('pl-PL')+' haseł. Słownik działa również offline po pierwszym otwarciu.';
+   }catch(err){
+    $('dictStatus').textContent='Nie udało się automatycznie wczytać słownika: '+err.message+' Możesz użyć ręcznego importu poniżej.';
+   }
+  }else{
+   $('dictStatus').textContent='W bazie znajduje się '+dictionary.length.toLocaleString('pl-PL')+' haseł.';
+  }
   renderDict();
  }catch(err){$('dictStatus').textContent='Nie udało się otworzyć lokalnej bazy: '+err.message;}
 }
@@ -683,25 +699,36 @@ function rankDictionaryEntry(x,q){
  return 99;
 }
 function renderDict(){
-  $('dictResults').textContent='TEST NOWEJ WERSJI';
-return;
  const raw=($('dictSearch').value||'').trim();
  const q=raw.toLocaleLowerCase();
  const mode=$('dictScript')?.value||'all';
  const el=$('dictResults');el.innerHTML='';
  if(!q){el.textContent=dictionary.length?'Wpisz zapytanie, aby przeszukać lokalną bazę.':'Najpierw zaimportuj bazę CC-CEDICT.';return;}
- let hits=dictionary.map(x=>({x,rank:rankDictionaryEntry(x,q)})).filter(v=>v.rank<99);
+ let hits=dictionary.map(x=>({x,rank:rankDictionaryEntry(x,q),own:false})).filter(v=>v.rank<99);
+ // Polish meanings are searched in the user's own saved vocabulary, since CC-CEDICT definitions are English.
+ const qFold=foldPinyin(q);
+ words.forEach(w=>{
+  const meaning=(w.meaning||'').toLocaleLowerCase('pl-PL');
+  const py=foldPinyin(w.pinyin||'');
+  const hanzi=(w.hanzi||'');
+  let rank=99;
+  if(meaning.includes(q.toLocaleLowerCase('pl-PL')))rank=0;
+  else if(py && (py===qFold || py.startsWith(qFold+' ') || (' '+py+' ').includes(' '+qFold+' ')))rank=1;
+  else if(hanzi.includes(q))rank=2;
+  if(rank<99)hits.push({x:{simplified:hanzi,traditional:hanzi,pinyin:w.pinyin||'',english:w.meaning||''},rank,own:true});
+ });
  if(mode==='simplified')hits=hits.filter(v=>v.x.simplified);
  if(mode==='traditional')hits=hits.filter(v=>v.x.traditional);
  hits.sort((a,b)=>a.rank-b.rank || a.x.simplified.localeCompare(b.x.simplified));
- hits=hits.slice(0,40).map(v=>v.x);
- if(!hits.length){el.textContent='Brak wyników. Możesz dodać znak ręcznie w zakładce Dodaj.';return;}
- hits.forEach(x=>{
+ hits=hits.slice(0,40);
+ if(!hits.length){el.textContent='Brak wyników. Polskie tłumaczenia są przeszukiwane w Twoich własnych słówkach.';return;}
+ hits.forEach(hit=>{
+  const x=hit.x;
   const d=document.createElement('div');d.className='dictItem';
   const b=document.createElement('b');b.textContent=x.simplified+(x.traditional!==x.simplified?' / '+x.traditional:'');
-  const p=document.createElement('div');p.className='muted';p.textContent=x.pinyin+' · '+x.english;
+  const p=document.createElement('div');p.className='muted';p.textContent=x.pinyin+' · '+x.english+(hit.own?' · Twoje słówko':'');
   const btn=document.createElement('button');btn.className='secondary';btn.textContent='Użyj tego hasła';
-  btn.onclick=()=>{switchTab('add');$('hanzi').value=x.simplified;$('pinyin').value=x.pinyin;$('meaning').focus();$('saveStatus').textContent='Wpisz własne polskie tłumaczenie.';};
+  btn.onclick=()=>{switchTab('add');$('hanzi').value=x.simplified;$('pinyin').value=x.pinyin;if(hit.own)$('meaning').value=x.english;$('meaning').focus();$('saveStatus').textContent=hit.own?'To Twoje zapisane słówko.':'Wpisz własne polskie tłumaczenie.';};
   d.append(b,p,btn);el.append(d);
  });
 }
