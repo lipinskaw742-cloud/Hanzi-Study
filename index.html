@@ -650,29 +650,35 @@ function foldPinyin(value){
 }
 function rankDictionaryEntry(x,q){
  const query=(q||'').trim();
- const hanzi=query.replace(/\s/g,'');
- const simp=x.simplified||'', trad=x.traditional||'';
- const py=foldPinyin(x.pinyin);
- const qpy=foldPinyin(query);
+ if(!query)return 99;
  const hasHanzi=/[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/.test(query);
+ const simp=x.simplified||'', trad=x.traditional||'';
+ // Chinese-character searches are handled separately from Latin/pinyin searches.
  if(hasHanzi){
+  const hanzi=query.replace(/\s/g,'');
   if(simp===hanzi||trad===hanzi)return 0;
   if(simp.startsWith(hanzi)||trad.startsWith(hanzi))return 1;
   if(simp.includes(hanzi)||trad.includes(hanzi))return 2;
   return 99;
  }
- if(!qpy)return 99;
- // Latin input is treated as pinyin first. This prevents short searches
- // such as "ni" from matching random English definition fragments.
- if(py===qpy)return 0;
- if(py.startsWith(qpy)||(' '+py).includes(' '+qpy))return 1;
- // English lookup is deliberately limited to complete words and queries
- // of at least three letters; never use arbitrary substring matching.
- const en=(x.english||'').toLocaleLowerCase();
- if(qpy.replace(/\s/g,'').length>=3){
-  const escaped=query.toLocaleLowerCase().replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-  const token=new RegExp('(^|[^a-z])'+escaped+'([^a-z]|$)','i');
-  if(token.test(en))return 3;
+ // Normalize pinyin and compare complete syllables only.
+ // This deliberately makes "shen" different from "sheng".
+ const querySyllables=foldPinyin(query).split(' ').filter(Boolean);
+ const entrySyllables=foldPinyin(x.pinyin||'').split(' ').filter(Boolean);
+ if(querySyllables.length && entrySyllables.length){
+  const width=querySyllables.length;
+  for(let i=0;i<=entrySyllables.length-width;i++){
+   let match=true;
+   for(let j=0;j<width;j++)if(entrySyllables[i+j]!==querySyllables[j]){match=false;break;}
+   if(match)return width===entrySyllables.length?0:1;
+  }
+ }
+ // English definitions: whole-word matches only, and only for queries of 3+ chars.
+ const latin=query.toLocaleLowerCase();
+ if(/^[a-züv\s]+$/i.test(query) && latin.replace(/\s+/g,'').length>=3){
+  const escaped=latin.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/\s+/g,'\\s+');
+  const wholeWord=new RegExp('(^|[^a-z])'+escaped+'([^a-z]|$)','i');
+  if(wholeWord.test((x.english||'').toLocaleLowerCase()))return 3;
  }
  return 99;
 }
