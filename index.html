@@ -1,0 +1,605 @@
+
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f8eaf0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<title>Hanzi Study</title>
+<style>
+:root{--bg:#fff7fa;--card:#fff;--ink:#332a30;--muted:#81747c;--line:#f0dfe7;--accent:#c66f96;--soft:#fbeaf1;--red:#a34b40}
+:root[data-theme="dark"]{--bg:#201b20;--card:#2c252c;--ink:#f7edf2;--muted:#c0adb8;--line:#493b45;--accent:#e69abd;--soft:#493342;--red:#f09b91}
+textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--card);font:15px system-ui;color:var(--ink)}
+.topActions{display:flex;align-items:center;gap:7px}.inlineCheck{display:flex;align-items:center;gap:8px}.inlineCheck input{width:auto}.dictResults{margin-top:12px}.dictItem{padding:12px 0;border-bottom:1px solid var(--line)}.dictItem b{font-size:21px}.dictItem button{margin-top:7px}
+body{background:var(--bg);color:var(--ink)}.panel{background:var(--card)}input,select{background:var(--card);color:var(--ink)}.tab{background:var(--soft);color:var(--ink)}.tab.active{background:var(--ink);color:var(--card)}.secondary{background:var(--soft);color:var(--ink)}.stats{background:var(--soft)}.checks label{background:var(--soft)}.note{background:var(--soft)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px system-ui;padding:env(safe-area-inset-top) 15px env(safe-area-inset-bottom)}
+main{max-width:620px;margin:auto;padding:20px 0 40px}
+.top{display:flex;justify-content:space-between;align-items:center;margin:5px 0 22px}
+.brand{font-size:22px;font-weight:800}
+.pill,.tag{font-size:12px;padding:7px 10px;border-radius:20px;background:var(--soft);color:var(--accent);font-weight:700}
+.tag.trad{background:#f4eee2;color:#805a18}
+.tag.both{background:#eeeaf6;color:#65508b}
+nav{display:flex;gap:6px;margin-bottom:17px;flex-wrap:wrap}
+button{border:0;border-radius:11px;padding:11px 13px;font:600 14px system-ui;cursor:pointer}
+.tab{flex:1;background:#ebe8df;color:#625f57}
+.tab.active{background:var(--ink);color:white}
+.panel{background:white;border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:13px}
+h1{font-size:22px;margin:0 0 5px}
+h2{font-size:17px;margin:0 0 12px}
+.muted{color:var(--muted);font-size:13px}
+.row{display:flex;gap:9px;align-items:center}
+.row>*{flex:1;min-width:0}
+label{display:block;font-size:13px;font-weight:650;margin:12px 0 6px}
+input,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:white;font:16px system-ui;color:var(--ink)}
+select[multiple]{min-height:100px}
+.primary{background:var(--accent);color:white;width:100%;margin-top:12px}
+.secondary{background:#efede7;color:var(--ink)}
+.danger{background:#f8eeeb;color:var(--red)}
+.hidden{display:none!important}
+.center{text-align:center}
+.progress{height:6px;background:#ece9e1;border-radius:8px;margin:12px 0}
+.progress span{display:block;height:100%;background:var(--accent);width:0}
+.meaning{text-align:center;font-size:22px;font-weight:700;margin:14px 0 4px}
+#writer{width:min(100%,340px);height:min(85vw,340px);margin:12px auto;background:white;border:1px solid var(--line);border-radius:15px;touch-action:none}
+.note{background:#f6f3e9;padding:11px;border-radius:11px;font-size:13px;line-height:1.5;margin-top:10px}
+.folder{display:flex;align-items:center;gap:10px;padding:13px 0;border-bottom:1px solid var(--line)}
+.folder:last-child{border:0}
+.folderIcon{font-size:27px}
+.folderInfo{flex:1;min-width:0}
+.folderInfo b{display:block}
+.wordrow{padding:12px 0;border-bottom:1px solid var(--line)}
+.wordrow:last-child{border:0}
+.wordtop{display:flex;gap:10px;align-items:center}
+.hanzi{font-size:25px;min-width:65px}
+.wordinfo{flex:1;min-width:0}
+.wordinfo small{display:block;color:var(--muted);font-size:12px}
+.checks{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.checks label{font-weight:400;margin:0;background:#f3f1eb;padding:7px 9px;border-radius:9px}
+.checks input{width:auto}
+.stats{background:#f5f3ed;border-radius:10px;padding:9px;text-align:center}
+.stats strong{display:block;font-size:19px}
+
+/* Accessibility and theme contrast fixes */
+:root{
+  --bg:#fff7fa; --card:#ffffff; --ink:#302832; --muted:#655963;
+  --line:#dfcbd5; --accent:#b65382; --soft:#f8e6ef; --red:#963f38;
+  --field:#ffffff; --field-text:#302832; --note-bg:#f7edf1;
+}
+:root[data-theme="dark"]{
+  --bg:#201b20; --card:#302832; --ink:#f8f0f4; --muted:#d0c0c9;
+  --line:#5a4853; --accent:#e79abd; --soft:#493541; --red:#ffaaa0;
+  --field:#3a3039; --field-text:#fff7fb; --note-bg:#40323c;
+}
+body{background:var(--bg)!important;color:var(--ink)!important}
+.panel{background:var(--card)!important;color:var(--ink)!important;border-color:var(--line)!important}
+h1,h2,.brand,label{color:var(--ink)}
+label{font-weight:700}
+.muted, .wordinfo small{color:var(--muted)!important}
+input,select,textarea{
+  background:var(--field)!important;color:var(--field-text)!important;
+  border-color:var(--line)!important;
+}
+input::placeholder,textarea::placeholder{color:var(--muted)!important;opacity:1}
+select option{background:var(--field);color:var(--field-text)}
+.note{background:var(--note-bg)!important;color:var(--ink)!important}
+.stats,.checks label,.tab,.secondary{background:var(--soft);color:var(--ink)}
+.tab.active{background:var(--accent);color:#fff}
+.primary{background:var(--accent)!important;color:#fff!important}
+.pill,.tag{color:var(--accent);background:var(--soft)}
+.tag.trad{background:var(--soft);color:var(--ink)}
+.tag.both{background:var(--soft);color:var(--ink)}
+.inlineCheck{color:var(--ink)}
+button{color:var(--ink)}
+.danger{background:var(--soft);color:var(--red)}
+/* Keep the handwriting canvas white for reliable stroke visibility */
+#writer{background:#fff!important;color:#222!important}
+
+</style>
+</head>
+<body>
+<main>
+<header class="top">
+ <div class="brand">尹 Hanzi Study</div>
+ <div class="topActions"><button class="secondary" id="themeToggle" type="button">🌙 Ciemny</button><span class="pill">Twój prywatny deck</span></div>
+</header>
+
+<nav>
+ <button class="tab active" data-tab="folders">Foldery</button>
+ <button class="tab" data-tab="study">Nauka</button>
+ <button class="tab" data-tab="words">Słówka</button>
+ <button class="tab" data-tab="add">Dodaj</button>
+ <button class="tab" data-tab="dictionary">Słownik</button>
+ <button class="tab" data-tab="backup">Kopia</button>
+</nav>
+
+<section id="folders">
+ <div class="panel">
+  <h1>Moje foldery</h1>
+  <p class="muted">Twórz własne zestawy na lekcje, kolokwia i kartkówki.</p>
+  <div class="row">
+   <input id="folderName" placeholder="Nazwa nowego folderu">
+   <button class="primary" id="createFolder">+ Utwórz</button>
+  </div>
+  <div id="folderList" style="margin-top:14px"></div>
+ </div>
+</section>
+
+<section id="study" class="hidden">
+ <div class="panel">
+  <h1 id="studyTitle">Moja nauka</h1>
+  <div class="muted" id="counter">Wybierz folder</div><span id="modePill" class="pill">Tryb nauki</span>
+  <label>Ucz się z folderu</label>
+  <select id="studyFolder"><option value="*">Wszystkie słówka</option></select>
+  <label>Kolejność</label>
+  <select id="studyMode">
+   <option value="ordered">Po kolei</option>
+   <option value="random">Losowo</option>
+   <option value="due">Powtórki do zrobienia</option>
+  </select>
+  <button class="primary" id="startStudy">Rozpocznij naukę</button>
+  <div class="progress"><span id="bar"></span></div>
+  <div id="exercise" class="hidden">
+   <div class="center"><span id="scriptBadge" class="tag"></span></div>
+   <div class="muted center" style="margin-top:12px">Napisz po chińsku:</div>
+   <div class="meaning" id="prompt"></div>
+   <div class="muted center" id="pinyinHint"></div>
+   <div id="writer"></div>
+   <div class="center muted" id="charProgress"></div>
+   <div class="row" style="margin-top:9px">
+    <button class="secondary" id="hintBtn">Podpowiedź</button>
+    <button class="secondary" id="clearBtn">Wyczyść</button>
+   </div>
+   <div id="result" class="note hidden"></div>
+   <button class="primary hidden" id="nextBtn">Następne słowo</button>
+  </div>
+  <div id="emptyStudy" class="note hidden"></div>
+ </div>
+ <div class="panel">
+  <h2>Twoje postępy</h2>
+  <div class="row">
+   <div class="stats"><strong id="statDue">0</strong><span class="muted">do powtórki</span></div>
+   <div class="stats"><strong id="statKnown">0</strong><span class="muted">opanowane</span></div>
+   <div class="stats"><strong id="statTotal">0</strong><span class="muted">słówka</span></div>
+  </div>
+ </div>
+</section>
+
+<section id="words" class="hidden">
+ <div class="panel">
+  <h1>Wszystkie słówka</h1>
+  <p class="muted">Jedno słówko może należeć do wielu folderów.</p>
+  <div id="wordList"></div>
+ </div>
+</section>
+
+<section id="add" class="hidden">
+ <div class="panel">
+  <h1>Dodaj słowo</h1>
+  <label>Chiński znak / słowo</label>
+  <input id="hanzi" placeholder="例如：你好">
+  <label>Pinyin</label>
+  <input id="pinyin" placeholder="nǐ hǎo">
+  <label>Znaczenie po polsku</label>
+  <input id="meaning" placeholder="np. cześć">
+  <label>Rodzaj zapisu</label>
+  <select id="script">
+   <option value="simplified">Uproszczony · 简体字</option>
+   <option value="traditional">Tradycyjny · 繁體字</option>
+   <option value="both">Wspólny / mieszany</option>
+  </select>
+  <label>Własny znak / własne zasady (opcjonalnie)</label>
+  <div class="note">Zaznacz, jeśli to Twój znak lub wariant. Wtedy możesz zapisać własną liczbę kresek i instrukcje ich pisania. Aplikacja nie będzie wymagała, aby znak istniał w słowniku.</div>
+  <label class="inlineCheck"><input type="checkbox" id="isCustom"> To mój własny znak / wariant</label>
+  <div id="customFields" class="hidden">
+   <label>Liczba kresek</label><input id="strokeCount" type="number" min="1" max="100" placeholder="np. 5">
+   <label>Moje zasady i kolejność kresek</label><textarea id="strokeRules" rows="3" placeholder="Np. 1. pozioma z lewej do prawej; 2. pionowa z góry na dół..."></textarea>
+  </div>
+  <label>Przypisz do folderów (możesz wybrać kilka)</label>
+  <div id="folderChecks" class="checks"></div>
+  <button class="primary" id="saveWord">Zapisz słowo</button>
+  <p class="muted" id="saveStatus"></p>
+ </div>
+</section>
+
+<section id="dictionary" class="hidden">
+ <div class="panel"><h1>Lokalny słownik</h1><p class="muted">Wyszukuj w zaimportowanej bazie CC-CEDICT lub dodanych własnych rekordach. Polskie tłumaczenie zawsze wpisujesz samodzielnie.</p>
+ <label>Szukaj znaku, słowa lub pinyin</label><input id="dictSearch" placeholder="np. 学习 albo xué xí">
+ <div id="dictResults" class="dictResults"></div>
+ <label>Import bazy CC-CEDICT (.u8 / .txt)</label><input id="dictFile" type="file" accept=".u8,.txt,.cedict">
+ <p class="muted">Po pobraniu CC-CEDICT zaimportuj plik tekstowy. Import odbywa się lokalnie w przeglądarce; aplikacja nie wysyła danych na serwer.</p>
+ <button class="secondary" id="clearDict">Usuń zaimportowaną bazę słownika</button><p class="muted" id="dictStatus"></p></div>
+</section>
+<section id="backup" class="hidden"><div class="panel"><h1>Kopia zapasowa</h1><p class="muted">Eksportuj foldery, słówka, własne warianty i postępy do pliku JSON. Zachowaj go w bezpiecznym miejscu.</p><button class="primary" id="exportData">Pobierz kopię zapasową</button><label>Przywróć kopię JSON</label><input id="importData" type="file" accept="application/json,.json"><p class="muted" id="backupStatus"></p></div></section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.7/dist/hanzi-writer.min.js"></script>
+<script>
+const WORD_KEY='hanzi-study-words-v1';
+const FOLDER_KEY='hanzi-study-folders-v1';
+
+let words=JSON.parse(localStorage.getItem(WORD_KEY)||'[]');
+let folders=JSON.parse(localStorage.getItem(FOLDER_KEY)||'[]');
+let queue=[],pos=0,wordIndex=0,charPos=0,writer=null,mistakes=0;
+
+const $=id=>document.getElementById(id);
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+
+function save(){
+ localStorage.setItem(WORD_KEY,JSON.stringify(words));
+ localStorage.setItem(FOLDER_KEY,JSON.stringify(folders));
+}
+
+function migrate(){
+ words=words.map(w=>({
+  ...w,
+  id:w.id||uid(),
+  folderIds:Array.isArray(w.folderIds)?w.folderIds:[],
+  script:w.script||'simplified',
+  mistakes:Number(w.mistakes||0),
+  reviews:Number(w.reviews||0),
+  intervalDays:Number(w.intervalDays||0),
+  dueAt:Number(w.dueAt||0)
+ }));
+ save();
+}
+migrate();
+
+function escapeHTML(s){
+ return String(s).replace(/[&<>"']/g,c=>({
+ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+ }[c]));
+}
+
+function scriptName(s){
+ if(s==='traditional')return 'TRADYCYJNY · 繁體字';
+ if(s==='both')return 'WSPÓLNY / MIESZANY';
+ return 'UPROSZCZONY · 简体字';
+}
+
+function switchTab(name){
+ document.querySelectorAll('section').forEach(s=>s.classList.toggle('hidden',s.id!==name));
+ document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
+ if(name==='folders')renderFolders();
+ if(name==='words')renderWords();
+ if(name==='add')renderFolderChecks();
+ if(name==='study')refreshStudyFolders();
+}
+document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
+
+function renderFolders(){
+ let el=$('folderList');
+ el.innerHTML='';
+ if(!folders.length){
+  el.innerHTML='<p class="muted">Nie masz jeszcze folderów. Utwórz pierwszy powyżej.</p>';
+  return;
+ }
+ folders.forEach(f=>{
+  let count=words.filter(w=>w.folderIds.includes(f.id)).length;
+  let d=document.createElement('div');
+  d.className='folder';
+  d.innerHTML=`<div class="folderIcon">📁</div>
+   <div class="folderInfo"><b></b><small class="muted"></small></div>
+   <button class="secondary">Ucz się</button>
+   <button class="secondary">•••</button>`;
+  d.querySelector('b').textContent=f.name;
+  d.querySelector('small').textContent=count+' słówek';
+  d.querySelectorAll('button')[0].onclick=()=>{
+   switchTab('study');
+   $('studyFolder').value=f.id;
+   startStudy();
+  };
+  d.querySelectorAll('button')[1].onclick=()=>folderMenu(f.id);
+  el.append(d);
+ });
+}
+
+function folderMenu(id){
+ let f=folders.find(x=>x.id===id);
+ if(!f)return;
+ let choice=prompt('Wpisz nową nazwę folderu. Wpisz DELETE, aby usunąć folder.',f.name);
+ if(choice===null)return;
+ if(choice.trim().toUpperCase()==='DELETE'){
+  if(confirm('Usunąć folder? Słówka pozostaną w aplikacji.')){
+   folders=folders.filter(x=>x.id!==id);
+   words.forEach(w=>w.folderIds=w.folderIds.filter(x=>x!==id));
+   save();renderFolders();renderFolderChecks();refreshStudyFolders();
+  }
+ }else if(choice.trim()){
+  f.name=choice.trim();save();renderFolders();renderFolderChecks();refreshStudyFolders();
+ }
+}
+
+$('createFolder').onclick=()=>{
+ let name=$('folderName').value.trim();
+ if(!name)return alert('Wpisz nazwę folderu.');
+ if(folders.some(f=>f.name.toLowerCase()===name.toLowerCase()))return alert('Taki folder już istnieje.');
+ folders.push({id:uid(),name});
+ $('folderName').value='';
+ save();renderFolders();renderFolderChecks();refreshStudyFolders();
+};
+
+function renderFolderChecks(){
+ let el=$('folderChecks');
+ el.innerHTML='';
+ if(!folders.length){
+  el.innerHTML='<span class="muted">Najpierw utwórz folder w zakładce Foldery.</span>';
+  return;
+ }
+ folders.forEach(f=>{
+  let label=document.createElement('label');
+  label.innerHTML='<input type="checkbox" value="'+escapeHTML(f.id)+'"> ';
+  label.append(document.createTextNode(f.name));
+  el.append(label);
+ });
+}
+
+$('saveWord').onclick=()=>{
+ let h=$('hanzi').value.trim();
+ let p=$('pinyin').value.trim();
+ let m=$('meaning').value.trim();
+ if(!h||!m)return $('saveStatus').textContent='Wpisz znak i znaczenie.';
+ let selected=[...$('folderChecks').querySelectorAll('input:checked')].map(x=>x.value);
+ words.push({
+  id:uid(),hanzi:h,pinyin:p,meaning:m,script:$('script').value,
+  folderIds:selected,isCustom:$('isCustom').checked,strokeCount:Number($('strokeCount').value||0),strokeRules:$('strokeRules').value.trim(),mistakes:0,reviews:0,intervalDays:0,dueAt:0
+ });
+ save();
+ $('hanzi').value=$('pinyin').value=$('meaning').value=''; $('isCustom').checked=false; $('strokeCount').value=''; $('strokeRules').value=''; $('customFields').classList.add('hidden');
+ $('folderChecks').querySelectorAll('input').forEach(x=>x.checked=false);
+ $('saveStatus').textContent='Słówko zapisane!';
+ renderFolders();updateStats();
+};
+
+function renderWords(){
+ let el=$('wordList');el.innerHTML='';
+ if(!words.length){el.textContent='Nie masz jeszcze słówek.';return;}
+ words.forEach((w,i)=>{
+  let d=document.createElement('div');
+  d.className='wordrow';
+  let names=folders.filter(f=>w.folderIds.includes(f.id)).map(f=>f.name);
+  d.innerHTML=`<div class="wordtop">
+   <div class="hanzi"></div>
+   <div class="wordinfo"><b></b><small></small></div>
+   <button class="danger">×</button>
+  </div>
+  <label>Foldery tego słówka</label>
+  <select multiple></select>`;
+  d.querySelector('.hanzi').textContent=w.hanzi;
+  d.querySelector('.wordinfo b').textContent=w.meaning;
+  d.querySelector('.wordinfo small').textContent=(w.pinyin||'')+' · '+scriptName(w.script);
+  d.querySelector('.danger').onclick=()=>{
+   if(confirm('Usunąć to słówko?')){
+    words.splice(i,1);save();renderWords();updateStats();
+   }
+  };
+  let select=d.querySelector('select');
+  folders.forEach(f=>{
+   let o=document.createElement('option');
+   o.value=f.id;o.textContent=f.name;
+   o.selected=w.folderIds.includes(f.id);
+   select.append(o);
+  });
+  select.onchange=()=>{
+   w.folderIds=[...select.selectedOptions].map(o=>o.value);
+   save();renderFolders();
+  };
+  el.append(d);
+ });
+}
+
+function refreshStudyFolders(){
+ let s=$('studyFolder'),old=s.value;
+ s.innerHTML='<option value="*">Wszystkie słówka</option>';
+ folders.forEach(f=>{
+  let o=document.createElement('option');
+  o.value=f.id;o.textContent=f.name;s.append(o);
+ });
+ s.value=[...s.options].some(o=>o.value===old)?old:'*';
+}
+
+function updateStats(){
+ let now=Date.now();
+ $('statTotal').textContent=words.length;
+ $('statDue').textContent=words.filter(w=>!w.dueAt||w.dueAt<=now).length;
+ $('statKnown').textContent=words.filter(w=>w.intervalDays>=4).length;
+}
+
+function startStudy(){
+ if(writer){try{writer.cancelQuiz()}catch(e){}writer=null;}
+ $('exercise').classList.add('hidden');
+ $('emptyStudy').classList.add('hidden');
+ let folder=$('studyFolder').value;
+ let list=words.map((w,i)=>({...w,_index:i}));
+ if(folder!=='*')list=list.filter(w=>w.folderIds.includes(folder));
+ let mode=$('studyMode').value;
+ if(mode==='due')list=list.filter(w=>!w.dueAt||w.dueAt<=Date.now()).sort((a,b)=>(a.dueAt||0)-(b.dueAt||0));
+ if(!list.length){
+  $('emptyStudy').classList.remove('hidden');
+  $('emptyStudy').textContent=words.length?'W tym folderze nie ma słówek do nauki.':'Dodaj najpierw swoje słówka.';
+  $('counter').textContent='Brak słówek';
+  updateStats();return;
+ }
+ queue=list.map(w=>w._index);
+ if(mode==='random'){
+  for(let i=queue.length-1;i>0;i--){
+   let j=Math.floor(Math.random()*(i+1));
+   [queue[i],queue[j]]=[queue[j],queue[i]];
+  }
+ }
+ pos=0;
+ $('exercise').classList.remove('hidden');
+ $('studyTitle').textContent=folder==='*'?'Wszystkie słówka':folders.find(f=>f.id===folder)?.name||'Folder';
+ $('modePill').textContent=mode==='random'?'Losowo':mode==='due'?'Powtórki':'Po kolei';
+ showWord();
+}
+
+function showWord(){
+ if(pos>=queue.length){
+  $('exercise').classList.add('hidden');
+  $('emptyStudy').classList.remove('hidden');
+  $('emptyStudy').textContent='Brawo! Ukończyłaś tę sesję.';
+  $('counter').textContent='Sesja ukończona';
+  $('bar').style.width='100%';return;
+ }
+ wordIndex=queue[pos];
+ let w=words[wordIndex];
+ $('counter').textContent=`Słówko ${pos+1} z ${queue.length}`;
+ $('bar').style.width=(pos/queue.length*100)+'%';
+ $('prompt').textContent=w.meaning;
+ $('pinyinHint').textContent=(w.pinyin?'Pinyin: '+w.pinyin:'Odtwórz znak z pamięci')+(w.isCustom?' · WŁASNY ZNAK':'');
+ if(w.isCustom && w.strokeRules) $('pinyinHint').textContent+='\nTwoje zasady: '+w.strokeRules;
+ $('scriptBadge').textContent=scriptName(w.script);
+ $('scriptBadge').className='tag '+(w.script==='traditional'?'trad':w.script==='both'?'both':'');
+ charPos=0;mistakes=0;
+ $('result').classList.add('hidden');
+ $('nextBtn').classList.add('hidden');
+ loadChar();
+}
+
+function getChars(){
+ return Array.from(words[wordIndex].hanzi).filter(c=>/\p{Script=Han}/u.test(c));
+}
+
+
+
+function loadChar(){
+ let chars=getChars();
+
+ if(charPos>=chars.length){
+  finishWord();
+  return;
+ }
+
+ const area=$('writer');
+
+ area.innerHTML='';
+ area.style.width='min(100%,340px)';
+ area.style.height='320px';
+ area.style.touchAction='none';
+ area.style.pointerEvents='auto';
+
+ writer=null;
+
+ const currentWord=words[wordIndex];
+ if(currentWord.isCustom){
+  area.innerHTML=''; area.style.position='relative'; area.style.background='var(--card)'; area.style.border='1px solid var(--line)';
+  const canvas=document.createElement('canvas'); canvas.width=320; canvas.height=320; canvas.style.width='100%'; canvas.style.height='100%'; canvas.style.touchAction='none'; area.append(canvas);
+  const ctx=canvas.getContext('2d'); ctx.lineWidth=13; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--ink').trim()||'#333';
+  let drawing=false, count=0;
+  canvas.onpointerdown=e=>{drawing=true;count++;canvas.setPointerCapture(e.pointerId);const r=canvas.getBoundingClientRect();ctx.beginPath();ctx.moveTo((e.clientX-r.left)*canvas.width/r.width,(e.clientY-r.top)*canvas.height/r.height);$('charProgress').textContent='Wykonane kreski: '+count+(currentWord.strokeCount?' / '+currentWord.strokeCount:'');};
+  canvas.onpointermove=e=>{if(!drawing)return;const r=canvas.getBoundingClientRect();ctx.lineTo((e.clientX-r.left)*canvas.width/r.width,(e.clientY-r.top)*canvas.height/r.height);ctx.stroke();};
+  canvas.onpointerup=()=>{drawing=false;}; canvas.onpointercancel=()=>{drawing=false;};
+  const info=document.createElement('div'); info.className='note'; info.textContent='Własny znak — ćwicz według swoich zasad. '+(currentWord.strokeCount?'Oczekiwana liczba kresek: '+currentWord.strokeCount+'. ':'')+(currentWord.strokeRules||'Nie dodano instrukcji.'); area.after(info);
+  const confirmBtn=document.createElement('button');confirmBtn.className='primary';confirmBtn.textContent='Zatwierdź ćwiczenie';area.after(confirmBtn);
+  confirmBtn.onclick=()=>{if(currentWord.strokeCount && count!==currentWord.strokeCount){$('charProgress').textContent='Liczba kresek: '+count+'. Oczekiwano '+currentWord.strokeCount+'. Popraw rysunek i spróbuj ponownie.';return;}info.remove();confirmBtn.remove();charPos++;setTimeout(loadChar,250);};
+  return;
+ }
+ if(!window.HanziWriter){
+  area.textContent='Nie udało się załadować Hanzi Writer.';
+  return;
+ }
+
+ let ch=chars[charPos];
+
+ try{
+  writer=HanziWriter.create('writer',ch,{
+   width:320,
+   height:320,
+   padding:18,
+   showOutline:false,
+   showCharacter:false,
+   drawingWidth:24,
+   drawingColor:'#286b58',
+   strokeColor:'#24231f',
+   highlightColor:'#286b58',
+   showHintAfterMisses:3,
+   highlightOnComplete:true
+  });
+
+  writer.quiz({
+   showHintAfterMisses:3,
+   highlightOnComplete:true,
+   leniency:0.75,
+   onMistake:()=>{
+    mistakes++;
+   },
+   onComplete:()=>{
+    charPos++;
+    setTimeout(loadChar,450);
+   }
+  });
+
+ }catch(e){
+  console.error(e);
+  area.textContent='Błąd: '+e.message;
+ }
+}
+function finishWord(){
+ let w=words[wordIndex],now=Date.now();
+ w.mistakes=(w.mistakes||0)+mistakes;
+ w.reviews=(w.reviews||0)+1;
+ w.lastScore=mistakes;
+ if(mistakes===0){
+  w.intervalDays=w.intervalDays?Math.min(90,Math.round(w.intervalDays*2.5)):4;
+  w.dueAt=now+w.intervalDays*86400000;
+ }else if(mistakes<=2){
+  w.intervalDays=1;w.dueAt=now+86400000;
+ }else{
+  w.intervalDays=0;w.dueAt=now+600000;
+ }
+ save();updateStats();
+ $('charProgress').textContent='Słówko ukończone!';
+ $('result').classList.remove('hidden');
+ $('result').textContent=mistakes===0?
+  'Świetnie! Bez błędów. Następna powtórka za '+w.intervalDays+' dni.':
+  mistakes<=2?'Dobra próba! Powtórka jutro.':
+  'To słówko wymaga ćwiczenia. Powtórka za 10 minut.';
+ $('nextBtn').classList.remove('hidden');
+}
+
+$('startStudy').onclick=startStudy;
+$('nextBtn').onclick=()=>{pos++;showWord();};
+$('hintBtn').onclick=()=>{
+ if(writer)writer.showHint();
+};
+$('clearBtn').onclick=()=>{if(writer){try{writer.cancelQuiz()}catch(e){}loadChar();}};
+$('studyFolder').onchange=()=>startStudy();
+$('studyMode').onchange=()=>startStudy();
+
+
+// Motyw: preferencja zapisywana lokalnie
+const THEME_KEY='hanzi-study-theme-v1';
+function setTheme(t){document.documentElement.dataset.theme=t;localStorage.setItem(THEME_KEY,t);$('themeToggle').textContent=t==='dark'?'☀️ Jasny':'🌙 Ciemny';}
+setTheme(localStorage.getItem(THEME_KEY)||'light');
+$('themeToggle').onclick=()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
+$('isCustom').onchange=()=> $('customFields').classList.toggle('hidden',!$('isCustom').checked);
+
+// Lokalny import CC-CEDICT. Oryginalny plik należy pobrać osobno i zachować jego licencję.
+const DICT_KEY='hanzi-study-dictionary-v1';
+let dictionary=JSON.parse(localStorage.getItem(DICT_KEY)||'[]');
+function parseCedict(text){
+ const out=[]; const re=/^(\S+)\s+(\S+)\s+\[([^\]]+)\]\s+\/(.+)\/$/;
+ for(const line of text.split(/\r?\n/)){const m=line.trim().match(re);if(!m)continue;out.push({traditional:m[1],simplified:m[2],pinyin:m[3],english:m[4].split('/').filter(Boolean).join('; ')});}
+ return out;
+}
+$('dictFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const parsed=parseCedict(await f.text());if(!parsed.length)throw Error('Nie rozpoznano formatu CC-CEDICT.');dictionary=parsed;localStorage.setItem(DICT_KEY,JSON.stringify(dictionary));$('dictStatus').textContent='Zaimportowano '+parsed.length.toLocaleString('pl-PL')+' haseł.';renderDict();}catch(err){$('dictStatus').textContent='Błąd importu: '+err.message;}};
+function renderDict(){const q=($('dictSearch').value||'').trim().toLowerCase();const hits=q?dictionary.filter(x=>x.simplified.toLowerCase().includes(q)||x.traditional.toLowerCase().includes(q)||x.pinyin.toLowerCase().includes(q)||x.english.toLowerCase().includes(q)).slice(0,40):[];const el=$('dictResults');el.innerHTML='';if(!q){el.textContent='Wpisz zapytanie, aby przeszukać lokalną bazę.';return;}if(!hits.length){el.textContent='Brak wyników. Możesz dodać znak ręcznie w zakładce Dodaj.';return;}hits.forEach(x=>{const d=document.createElement('div');d.className='dictItem';const b=document.createElement('b');b.textContent=x.simplified+(x.traditional!==x.simplified?' / '+x.traditional:'');const p=document.createElement('div');p.className='muted';p.textContent=x.pinyin+' · '+x.english;const btn=document.createElement('button');btn.className='secondary';btn.textContent='Użyj tego hasła';btn.onclick=()=>{switchTab('add');$('hanzi').value=x.simplified;$('pinyin').value=x.pinyin;$('meaning').focus();$('saveStatus').textContent='Wpisz własne polskie tłumaczenie.';};d.append(b,p,btn);el.append(d);});}
+$('dictSearch').oninput=renderDict;
+$('clearDict').onclick=()=>{if(confirm('Usunąć lokalną bazę słownika? Twoje własne słówka pozostaną.')){dictionary=[];localStorage.removeItem(DICT_KEY);renderDict();$('dictStatus').textContent='Baza słownika usunięta.';}};
+
+$('exportData').onclick=()=>{const payload={format:'hanzi-study-backup',version:2,exportedAt:new Date().toISOString(),words,folders,dictionary};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='hanzi-study-backup.json';a.click();URL.revokeObjectURL(a.href);};
+$('importData').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(!Array.isArray(d.words)||!Array.isArray(d.folders))throw Error('Nieprawidłowy plik kopii.');if(!confirm('Przywrócenie zastąpi aktualne foldery i słówka. Kontynuować?'))return;words=d.words;folders=d.folders;dictionary=Array.isArray(d.dictionary)?d.dictionary:[];save();localStorage.setItem(DICT_KEY,JSON.stringify(dictionary));renderFolders();renderWords();renderFolderChecks();refreshStudyFolders();updateStats();$('backupStatus').textContent='Kopia została przywrócona.';}catch(err){$('backupStatus').textContent='Nie udało się przywrócić: '+err.message;}};
+
+refreshStudyFolders();
+renderFolders();
+renderFolderChecks();
+updateStats();
+</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(console.warn));}</script>
+</body>
+</html>
