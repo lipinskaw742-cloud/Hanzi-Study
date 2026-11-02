@@ -649,18 +649,31 @@ function foldPinyin(value){
  return (value||'').toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[1-5]/g,'').replace(/[üǖǘǚǜ]/g,'u').replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ');
 }
 function rankDictionaryEntry(x,q){
- const hanzi=q.replace(/\s/g,'');
- const simp=x.simplified||'', trad=x.traditional||'', py=foldPinyin(x.pinyin), en=(x.english||'').toLocaleLowerCase();
- const qpy=foldPinyin(q);
- if(simp===hanzi||trad===hanzi)return 0;
- if(simp.startsWith(hanzi)||trad.startsWith(hanzi))return 1;
- if(py===qpy)return 2;
- if(py.startsWith(qpy)||(' '+py).includes(' '+qpy))return 3;
- const escaped=q.toLocaleLowerCase().replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
- const token=new RegExp('(^|[^a-z])'+escaped+'([^a-z]|$)','i');
- if(token.test(en))return 4;
- if(en.startsWith(q.toLocaleLowerCase()))return 5;
- if(en.includes(q.toLocaleLowerCase()))return 6;
+ const query=(q||'').trim();
+ const hanzi=query.replace(/\s/g,'');
+ const simp=x.simplified||'', trad=x.traditional||'';
+ const py=foldPinyin(x.pinyin);
+ const qpy=foldPinyin(query);
+ const hasHanzi=/[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/.test(query);
+ if(hasHanzi){
+  if(simp===hanzi||trad===hanzi)return 0;
+  if(simp.startsWith(hanzi)||trad.startsWith(hanzi))return 1;
+  if(simp.includes(hanzi)||trad.includes(hanzi))return 2;
+  return 99;
+ }
+ if(!qpy)return 99;
+ // Latin input is treated as pinyin first. This prevents short searches
+ // such as "ni" from matching random English definition fragments.
+ if(py===qpy)return 0;
+ if(py.startsWith(qpy)||(' '+py).includes(' '+qpy))return 1;
+ // English lookup is deliberately limited to complete words and queries
+ // of at least three letters; never use arbitrary substring matching.
+ const en=(x.english||'').toLocaleLowerCase();
+ if(qpy.replace(/\s/g,'').length>=3){
+  const escaped=query.toLocaleLowerCase().replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const token=new RegExp('(^|[^a-z])'+escaped+'([^a-z]|$)','i');
+  if(token.test(en))return 3;
+ }
  return 99;
 }
 function renderDict(){
