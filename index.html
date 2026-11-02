@@ -210,8 +210,8 @@ button{color:var(--ink)}
  <div class="panel"><h1>Lokalny słownik</h1><p class="muted">Wyszukuj w zaimportowanej bazie CC-CEDICT lub dodanych własnych rekordach. Polskie tłumaczenie zawsze wpisujesz samodzielnie.</p>
  <label>Szukaj znaku, słowa lub pinyin</label><input id="dictSearch" placeholder="np. 学习 albo xué xí">
  <div id="dictResults" class="dictResults"></div>
- <label>Import bazy CC-CEDICT (.u8 / .txt)</label><input id="dictFile" type="file" accept=".u8,.txt,.cedict">
- <p class="muted">Po pobraniu CC-CEDICT zaimportuj plik tekstowy. Import odbywa się lokalnie w przeglądarce; aplikacja nie wysyła danych na serwer.</p>
+ <label>Import bazy CC-CEDICT (plik .u8 lub .txt)</label><input id="dictFile" type="file" accept="*/*">
+ <p class="muted">Wybierz rozpakowany plik tekstowy cedict_ts.u8 (nie archiwum ZIP). Import może potrwać kilka chwil. Baza jest zapisywana w pamięci przeglądarki, nie w limicie małego localStorage.</p>
  <button class="secondary" id="clearDict">Usuń zaimportowaną bazę słownika</button><p class="muted" id="dictStatus"></p></div>
 </section>
 <section id="backup" class="hidden"><div class="panel"><h1>Kopia zapasowa</h1><p class="muted">Eksportuj foldery, słówka, własne warianty i postępy do pliku JSON. Zachowaj go w bezpiecznym miejscu.</p><button class="primary" id="exportData">Pobierz kopię zapasową</button><label>Przywróć kopię JSON</label><input id="importData" type="file" accept="application/json,.json"><p class="muted" id="backupStatus"></p></div></section>
@@ -579,21 +579,98 @@ setTheme(localStorage.getItem(THEME_KEY)||'light');
 $('themeToggle').onclick=()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
 $('isCustom').onchange=()=> $('customFields').classList.toggle('hidden',!$('isCustom').checked);
 
-// Lokalny import CC-CEDICT. Oryginalny plik należy pobrać osobno i zachować jego licencję.
+// Lokalny import CC-CEDICT. Duża baza jest przechowywana w IndexedDB,
+// ponieważ localStorage ma zbyt mały limit na pełny słownik.
 const DICT_KEY='hanzi-study-dictionary-v1';
-let dictionary=JSON.parse(localStorage.getItem(DICT_KEY)||'[]');
+const DB_NAME='hanzi-study-db';
+const DB_STORE='dictionary';
+let dictionary=[];
+function openDictDB(){
+ return new Promise((resolve,reject)=>{
+  if(!('indexedDB' in window)){reject(new Error('Ta przeglądarka nie obsługuje IndexedDB.'));return;}
+  const req=indexedDB.open(DB_NAME,1);
+  req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains(DB_STORE))db.createObjectStore(DB_STORE);};
+  req.onsuccess=()=>resolve(req.result);
+  req.onerror=()=>reject(req.error||new Error('Nie można otworzyć lokalnej bazy.'));
+ });
+}
+async function saveDictionary(rows){
+ const db=await openDictDB();
+ await new Promise((resolve,reject)=>{
+  const tx=db.transaction(DB_STORE,'readwrite');
+  tx.objectStore(DB_STORE).put(rows,DICT_KEY);
+  tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error('Nie udało się zapisać słownika.'));
+ });
+ db.close();
+}
+async function loadDictionary(){
+ try{
+  const db=await openDictDB();
+  dictionary=await new Promise((resolve,reject)=>{
+   const req=db.transaction(DB_STORE,'readonly').objectStore(DB_STORE).get(DICT_KEY);
+   req.onsuccess=()=>resolve(req.result||[]);
+   req.onerror=()=>reject(req.error);
+  });
+  db.close();
+  // Migracja małej, wcześniej zapisanej bazy z localStorage.
+  if(!dictionary.length){
+   try{const old=JSON.parse(localStorage.getItem(DICT_KEY)||'[]');if(old.length){dictionary=old;await saveDictionary(old);localStorage.removeItem(DICT_KEY);}}catch(e){}
+  }
+  $('dictStatus').textContent=dictionary.length?'W bazie znajduje się '+dictionary.length.toLocaleString('pl-PL')+' haseł.':'Nie zaimportowano jeszcze bazy. Wybierz plik CC-CEDICT poniżej.';
+  renderDict();
+ }catch(err){$('dictStatus').textContent='Nie udało się otworzyć lokalnej bazy: '+err.message;}
+}
 function parseCedict(text){
  const out=[]; const re=/^(\S+)\s+(\S+)\s+\[([^\]]+)\]\s+\/(.+)\/$/;
- for(const line of text.split(/\r?\n/)){const m=line.trim().match(re);if(!m)continue;out.push({traditional:m[1],simplified:m[2],pinyin:m[3],english:m[4].split('/').filter(Boolean).join('; ')});}
+ for(const raw of text.replace(/^\uFEFF/,'').split(/\r?\n/)){
+  const line=raw.trim();if(!line||line.startsWith('#'))continue;
+  const m=line.match(re);if(!m)continue;
+  out.push({traditional:m[1],simplified:m[2],pinyin:m[3],english:m[4].split('/').filter(Boolean).join('; ')});
+ }
  return out;
 }
-$('dictFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const parsed=parseCedict(await f.text());if(!parsed.length)throw Error('Nie rozpoznano formatu CC-CEDICT.');dictionary=parsed;localStorage.setItem(DICT_KEY,JSON.stringify(dictionary));$('dictStatus').textContent='Zaimportowano '+parsed.length.toLocaleString('pl-PL')+' haseł.';renderDict();}catch(err){$('dictStatus').textContent='Błąd importu: '+err.message;}};
-function renderDict(){const q=($('dictSearch').value||'').trim().toLowerCase();const hits=q?dictionary.filter(x=>x.simplified.toLowerCase().includes(q)||x.traditional.toLowerCase().includes(q)||x.pinyin.toLowerCase().includes(q)||x.english.toLowerCase().includes(q)).slice(0,40):[];const el=$('dictResults');el.innerHTML='';if(!q){el.textContent='Wpisz zapytanie, aby przeszukać lokalną bazę.';return;}if(!hits.length){el.textContent='Brak wyników. Możesz dodać znak ręcznie w zakładce Dodaj.';return;}hits.forEach(x=>{const d=document.createElement('div');d.className='dictItem';const b=document.createElement('b');b.textContent=x.simplified+(x.traditional!==x.simplified?' / '+x.traditional:'');const p=document.createElement('div');p.className='muted';p.textContent=x.pinyin+' · '+x.english;const btn=document.createElement('button');btn.className='secondary';btn.textContent='Użyj tego hasła';btn.onclick=()=>{switchTab('add');$('hanzi').value=x.simplified;$('pinyin').value=x.pinyin;$('meaning').focus();$('saveStatus').textContent='Wpisz własne polskie tłumaczenie.';};d.append(b,p,btn);el.append(d);});}
+$('dictFile').onchange=async e=>{
+ const f=e.target.files&&e.target.files[0];if(!f)return;
+ $('dictStatus').textContent='Odczytuję '+f.name+'…';
+ try{
+  const text=await f.text();
+  const parsed=parseCedict(text);
+  if(!parsed.length)throw Error('Plik nie wygląda na tekstowy CC-CEDICT. Rozpakuj ZIP i wybierz plik cedict_ts.u8 albo jego kopię .txt.');
+  $('dictStatus').textContent='Znaleziono '+parsed.length.toLocaleString('pl-PL')+' haseł. Zapisuję lokalnie…';
+  await saveDictionary(parsed);
+  dictionary=parsed;
+  $('dictStatus').textContent='Gotowe! Zaimportowano '+parsed.length.toLocaleString('pl-PL')+' haseł. Możesz teraz wyszukiwać offline.';
+  renderDict();
+ }catch(err){$('dictStatus').textContent='Błąd importu: '+err.message;}
+ e.target.value='';
+};
+function renderDict(){
+ const q=($('dictSearch').value||'').trim().toLowerCase();
+ const hits=q?dictionary.filter(x=>x.simplified.toLowerCase().includes(q)||x.traditional.toLowerCase().includes(q)||x.pinyin.toLowerCase().includes(q)||x.english.toLowerCase().includes(q)).slice(0,40):[];
+ const el=$('dictResults');el.innerHTML='';
+ if(!q){el.textContent=dictionary.length?'Wpisz zapytanie, aby przeszukać lokalną bazę.':'Najpierw zaimportuj bazę CC-CEDICT.';return;}
+ if(!hits.length){el.textContent='Brak wyników. Możesz dodać znak ręcznie w zakładce Dodaj.';return;}
+ hits.forEach(x=>{
+  const d=document.createElement('div');d.className='dictItem';
+  const b=document.createElement('b');b.textContent=x.simplified+(x.traditional!==x.simplified?' / '+x.traditional:'');
+  const p=document.createElement('div');p.className='muted';p.textContent=x.pinyin+' · '+x.english;
+  const btn=document.createElement('button');btn.className='secondary';btn.textContent='Użyj tego hasła';
+  btn.onclick=()=>{switchTab('add');$('hanzi').value=x.simplified;$('pinyin').value=x.pinyin;$('meaning').focus();$('saveStatus').textContent='Wpisz własne polskie tłumaczenie.';};
+  d.append(b,p,btn);el.append(d);
+ });
+}
 $('dictSearch').oninput=renderDict;
-$('clearDict').onclick=()=>{if(confirm('Usunąć lokalną bazę słownika? Twoje własne słówka pozostaną.')){dictionary=[];localStorage.removeItem(DICT_KEY);renderDict();$('dictStatus').textContent='Baza słownika usunięta.';}};
+$('clearDict').onclick=async()=>{
+ if(confirm('Usunąć zaimportowaną bazę słownika? Twoje własne słówka pozostaną.')){
+  dictionary=[];
+  try{const db=await openDictDB();await new Promise((resolve,reject)=>{const tx=db.transaction(DB_STORE,'readwrite');tx.objectStore(DB_STORE).delete(DICT_KEY);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});db.close();}catch(e){}
+  localStorage.removeItem(DICT_KEY);renderDict();$('dictStatus').textContent='Baza słownika usunięta.';
+ }
+};
+loadDictionary();
 
 $('exportData').onclick=()=>{const payload={format:'hanzi-study-backup',version:2,exportedAt:new Date().toISOString(),words,folders,dictionary};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='hanzi-study-backup.json';a.click();URL.revokeObjectURL(a.href);};
-$('importData').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(!Array.isArray(d.words)||!Array.isArray(d.folders))throw Error('Nieprawidłowy plik kopii.');if(!confirm('Przywrócenie zastąpi aktualne foldery i słówka. Kontynuować?'))return;words=d.words;folders=d.folders;dictionary=Array.isArray(d.dictionary)?d.dictionary:[];save();localStorage.setItem(DICT_KEY,JSON.stringify(dictionary));renderFolders();renderWords();renderFolderChecks();refreshStudyFolders();updateStats();$('backupStatus').textContent='Kopia została przywrócona.';}catch(err){$('backupStatus').textContent='Nie udało się przywrócić: '+err.message;}};
+$('importData').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(!Array.isArray(d.words)||!Array.isArray(d.folders))throw Error('Nieprawidłowy plik kopii.');if(!confirm('Przywrócenie zastąpi aktualne foldery i słówka. Kontynuować?'))return;words=d.words;folders=d.folders;dictionary=Array.isArray(d.dictionary)?d.dictionary:[];save();await saveDictionary(dictionary);renderFolders();renderWords();renderFolderChecks();refreshStudyFolders();updateStats();$('backupStatus').textContent='Kopia została przywrócona.';}catch(err){$('backupStatus').textContent='Nie udało się przywrócić: '+err.message;}};
 
 refreshStudyFolders();
 renderFolders();
