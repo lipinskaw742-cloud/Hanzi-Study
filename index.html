@@ -683,6 +683,8 @@ function rankDictionaryEntry(x,q){
  return 99;
 }
 function renderDict(){
+  $('dictResults').textContent='TEST NOWEJ WERSJI';
+return;
  const raw=($('dictSearch').value||'').trim();
  const q=raw.toLocaleLowerCase();
  const mode=$('dictScript')?.value||'all';
